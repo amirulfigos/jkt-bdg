@@ -80,11 +80,11 @@ function seed(){
  A(4,"14:30","Off to airport",KL,"1h30",75700,0,0,0,0,0,"x","Rp75.7k per Excel actual. Food delivery ideas: Mi Gacoan, Wingstop."),
  A(4,"19:50","Flight CGK → KUL (MH724)",KL,"~3h",0,0,0,0,0,0,"x","Dep 7:50PM, arr 11:00PM. ⚠ Excel return date still says 31/5/2025. Confirm the date.")];
  const pp=["Jai","Piee","Faritzh","Nasreq","Aman","Amirul"].map((n,i)=>({id:"p"+(i+1),n}));
- const sh={};["p1","p2","p3","p4","p5"].forEach(k=>sh[k]=508950);
+ const sh={};["p1","p2","p3","p4","p5"].forEach(k=>sh[k]=117);
  return{rate:4350,myr:true,me:"p6",pp,acts,pay:[],ck:{},
- exps:[{id:uid(),desc:"Hotel Bandung (2 nights)",cat:"Accommodation",amt:2544750,payer:"p6",ts:"2026-11-11T09:00",sh,note:"From Excel Payment sheet: RM117 each owed to Amirul, not paid yet. Unconfirmed, delete if wrong."}],
+ exps:[{id:uid(),desc:"Hotel Bandung (2 nights)",cat:"Accommodation",amt:585,cur:"MYR",payer:"p6",ts:"2026-11-11T09:00",sh,note:"From Excel Payment sheet: RM117 each owed to Amirul, not paid yet. Unconfirmed, delete if wrong."}],
  info:{hotel:"Bandung (2 nights): Chara Hotel OR Spot 43 Hotel & Café, confirm which.\nJakarta hotel: add name & address.",trans:"Flight KUL→CGK MH713, 14 Nov 2:50PM.\nReturn CGK→KUL MH724, 7:50PM (confirm date).\nWhoosh: Halim ↔ Padalarang. Charter driver for Lembang day.",emer:"Indonesia emergency (please verify): 112 general, 110 police, 113 fire, 118/119 ambulance.\nMalaysian Embassy Jakarta: add number.",notes:"Fully used Grab car to move; Gojek for food delivery (Excel tip)."}}}
-function load(){let s;try{const j=localStorage.getItem(KEY);if(j)s=JSON.parse(j)}catch(e){}s=s||seed();if(!s.pp.some(p=>p.id==s.me))s.me=(s.pp.find(p=>/amirul/i.test(p.n))||s.pp[0]).id;return s}
+function load(){let s;try{const j=localStorage.getItem(KEY);if(j)s=JSON.parse(j)}catch(e){}s=s||seed();s.exps.forEach(e=>{if(!e.cur){e.cur="IDR";if(e.desc=="Hotel Bandung (2 nights)"&&e.amt==2544750){e.cur="MYR";e.amt=585;for(const k in e.sh)e.sh[k]=117}}});(s.pay||[]).forEach(x=>x.cur=x.cur||"IDR");if(!s.pp.some(p=>p.id==s.me))s.me=(s.pp.find(p=>/amirul/i.test(p.n))||s.pp[0]).id;return s}
 let S=load(),tab="home",dayV=null,OP={},modal=null,expF="all";
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const N=()=>S.pp.length,nm=id=>(S.pp.find(p=>p.id==id)||{n:"?"}).n;
@@ -94,21 +94,27 @@ const td=()=>Math.floor((new Date(new Date().toDateString())-START)/864e5),dayOf
 const cost=a=>{const n=N();return{Entrance:a.e*n,Transport:a.tp?a.t*n:a.t,Food:a.f*n,Parking:a.p,Other:a.o*n}};
 const tot=a=>Object.values(cost(a)).reduce((s,x)=>s+x,0);
 const mapU=a=>a.map||"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(a.loc||a.title);
-const grp=()=>S.exps.filter(e=>!e.personal),mine=e=>e.personal?(e.payer==S.me?e.amt:0):(e.sh[S.me]||0);
+const CU=["IDR","MYR"],UF=c=>c=="MYR"?100:1,cOf=x=>x.cur||"IDR",toI=(x,v)=>cOf(x)=="MYR"?v*S.rate:v;
+const fC=(v,c)=>c=="MYR"?"RM\u00a0"+(+v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):fmt(v);
+const MC=(v,c)=>c=="MYR"?fC(v,c)+"<small class=my>≈ "+fmt(v*S.rate)+"</small>":M(v);
+const mineRaw=e=>e.personal?(e.payer==S.me?e.amt:0):(e.sh[S.me]||0);
+const grp=()=>S.exps.filter(e=>!e.personal),mine=e=>toI(e,mineRaw(e));
+const curs=()=>{const l=CU.filter(c=>S.exps.some(e=>!e.personal&&cOf(e)==c));return l.length?l:["IDR"]};
 const METH=["Cash","Debit card","Credit card","QRIS","E-wallet"],meths=()=>[...new Set([...METH,...S.exps.map(e=>e.method).filter(Boolean)])];
 const BADGE={x:'<span class="bd x">Excel ref</span>',e:'<span class="bd">Estimate</span>',u:'<span class="bd u">Your input</span>'};
 const SRC={x:"Source: your Excel (previous trip), not re-checked for Nov 2026.",e:"No verified price found. Rough estimate, check on site.",u:"Edited by you."};
-function bal(){const b={};S.pp.forEach(p=>b[p.id]={paid:0,owed:0,net:0});
- S.exps.forEach(e=>{if(e.personal)return;if(b[e.payer])b[e.payer].paid+=e.amt;for(const k in e.sh)if(b[k])b[k].owed+=e.sh[k]});
+function bal(cur){cur=cur||"IDR";const u=UF(cur),b={};S.pp.forEach(p=>b[p.id]={paid:0,owed:0,net:0});
+ S.exps.forEach(e=>{if(e.personal||cOf(e)!=cur)return;if(b[e.payer])b[e.payer].paid+=Math.round(e.amt*u);for(const k in e.sh)if(b[k])b[k].owed+=Math.round(e.sh[k]*u)});
  S.pp.forEach(p=>b[p.id].net=b[p.id].paid-b[p.id].owed);
- S.pay.forEach(p=>{if(b[p.from])b[p.from].net+=p.amt;if(b[p.to])b[p.to].net-=p.amt});
- const cr=[],db=[];S.pp.forEach(p=>{const v=Math.round(b[p.id].net);if(v>0)cr.push([p.id,v]);else if(v<0)db.push([p.id,-v])});
+ S.pay.forEach(p=>{if(cOf(p)!=cur)return;const a=Math.round(p.amt*u);if(b[p.from])b[p.from].net+=a;if(b[p.to])b[p.to].net-=a});
+ const cr=[],db=[];S.pp.forEach(p=>{const v=b[p.id].net;if(v>0)cr.push([p.id,v]);else if(v<0)db.push([p.id,-v])});
  const tr=[];cr.sort((a,b)=>b[1]-a[1]);db.sort((a,b)=>b[1]-a[1]);
- while(cr.length&&db.length){const x=Math.min(cr[0][1],db[0][1]);tr.push({from:db[0][0],to:cr[0][0],amt:x});cr[0][1]-=x;db[0][1]-=x;if(!cr[0][1])cr.shift();if(!db[0][1])db.shift()}
+ while(cr.length&&db.length){const x=Math.min(cr[0][1],db[0][1]);tr.push({from:db[0][0],to:cr[0][0],amt:x/u,cur});cr[0][1]-=x;db[0][1]-=x;if(!cr[0][1])cr.shift();if(!db[0][1])db.shift()}
+ S.pp.forEach(p=>{const x=b[p.id];x.paid/=u;x.owed/=u;x.net/=u});
  return{b,tr}}
 const V={};
 V.home=()=>{const t=td(),cd=Math.min(4,Math.max(0,t)),L=S.acts.filter(a=>a.day==cd),nx=L.find(a=>!a.done);
- const est=S.acts.reduce((s,a)=>s+tot(a),0),spent=grp().reduce((s,e)=>s+e.amt,0),sp=grp().filter(e=>dayOf(e)==t).reduce((s,e)=>s+e.amt,0),my=S.exps.reduce((s,e)=>s+mine(e),0),myT=S.exps.filter(e=>dayOf(e)==t).reduce((s,e)=>s+mine(e),0);
+ const est=S.acts.reduce((s,a)=>s+tot(a),0),spent=grp().reduce((s,e)=>s+toI(e,e.amt),0),sp=grp().filter(e=>dayOf(e)==t).reduce((s,e)=>s+toI(e,e.amt),0),my=S.exps.reduce((s,e)=>s+mine(e),0),myT=S.exps.filter(e=>dayOf(e)==t).reduce((s,e)=>s+mine(e),0);
  const st=t<0?"Starts in "+(-t)+" day"+(t<-1?"s":""):t>4?"Trip complete":"Day "+(t+1)+" of 5";
  return`<div class=hero><small>14–18 Nov 2026</small><h1>Jakarta &amp; Bandung Trip</h1><p>5 Days, 4 Nights · ${N()} travellers</p><b>${st}</b></div>
 <div class=prog>${DN.map((d,i)=>{const l=S.acts.filter(a=>a.day==i);return`<button class="pg ${i==cd&&t>=0&&t<=4?"on":""} ${l.length&&l.every(a=>a.done)?"dn":""}" data-a=goDay data-i=${i}><b>D${i+1}</b><small>${d.slice(4)}</small></button>`}).join("")}</div>
@@ -132,25 +138,25 @@ V.budget=()=>{let T=0;const D=DN.map((x,i)=>{const L=S.acts.filter(a=>a.day==i),
 <div class=c><small>${BADGE.x} taken from your Excel (earlier trip, not re-verified). ${BADGE.e} my rough figure, no price source found. Nothing here was checked live. Fix any price via Itinerary → Edit.</small></div>
 ${D.map(d=>`<details class=c ${d.i==Math.min(4,Math.max(0,td()))?"open":""}><summary style="padding:0"><div style="flex:1"><h3>Day ${d.i+1} · ${DN[d.i]}</h3><small>${DT[d.i]}</small></div><div style="text-align:right"><b>${fmt(d.t)}</b><br><small>${fmt(d.t/N())} /pax</small></div></summary>
 ${d.L.filter(a=>tot(a)).map(a=>{const c=cost(a);return`<div style="padding:8px 0;border-top:1px solid var(--bd)"><div class="row sp"><b>${esc(a.title)}</b><span>${fmt(tot(a))}</span></div><small>${Object.entries(c).filter(x=>x[1]).map(x=>x[0]+" "+fmt(x[1])).join(" · ")}</small><br>${BADGE[a.c]||""} <small>${SRC[a.c]||""}</small></div>`}).join("")||"<small>No costs</small>"}</details>`).join("")}`};
-V.exp=()=>{const t=td(),me=S.me,my=S.exps.reduce((s,e)=>s+mine(e),0),myT=S.exps.filter(e=>dayOf(e)==t).reduce((s,e)=>s+mine(e),0),g=grp().reduce((s,e)=>s+e.amt,0);
- const bm={},bc={};S.exps.forEach(e=>{if(e.payer==me){const k=e.method||"Not set";bm[k]=(bm[k]||0)+e.amt}const m=mine(e);if(m)bc[e.cat]=(bc[e.cat]||0)+m});
+V.exp=()=>{const t=td(),me=S.me,my=S.exps.reduce((s,e)=>s+mine(e),0),myT=S.exps.filter(e=>dayOf(e)==t).reduce((s,e)=>s+mine(e),0),g=grp().reduce((s,e)=>s+toI(e,e.amt),0),hasM=S.exps.some(e=>cOf(e)=="MYR");
+ const bm={},bc={};S.exps.forEach(e=>{if(e.payer==me){const k=e.method||"Not set";bm[k]=(bm[k]||0)+toI(e,e.amt)}const m=mine(e);if(m)bc[e.cat]=(bc[e.cat]||0)+m});
  const rows=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]).map(x=>`<div class=ln><span>${esc(x[0])}</span><b>${fmt(x[1])}</b></div>`).join("")||"<small>Nothing yet</small>";
  const L=S.exps.filter(e=>expF=="all"||(expF=="per")==!!e.personal).sort((a,b)=>b.ts.localeCompare(a.ts));let last="";
  return`<h2 style="margin-bottom:10px">Expenses</h2><div class=g2><div class="c stat"><small>My spending · ${esc(nm(me))}</small><b>${M(my)}</b><small>Today: ${fmt(myT)}</small></div><div class="c stat"><small>Group total</small><b>${M(g)}</b></div></div>
 <details class=c data-id=mybd ${OP.mybd?"open":""}><summary style="padding:0"><h3 style="flex:1">My breakdown</h3><small>tap to open</small></summary>
 <p style="margin-top:10px"><small>MY COST BY CATEGORY (personal + my share of group)</small></p>${rows(bc)}
 <p style="margin-top:10px"><small>PAID FROM MY POCKET, BY METHOD (includes what I paid first for others)</small></p>${rows(bm)}
-<label style="display:block;margin-top:10px">I am (this phone belongs to)</label><select data-c=me>${S.pp.map(p=>`<option value=${p.id} ${p.id==me?"selected":""}>${esc(p.n)}</option>`).join("")}</select></details>
+${hasM?`<p style="margin-top:8px"><small>Ringgit expenses are converted to rupiah at the rate in Budget (1 RM = ${S.rate.toLocaleString("id-ID")} IDR).</small></p>`:""}<label style="display:block;margin-top:10px">I am (this phone belongs to)</label><select data-c=me>${S.pp.map(p=>`<option value=${p.id} ${p.id==me?"selected":""}>${esc(p.n)}</option>`).join("")}</select></details>
 <div class=chips>${[["all","All"],["per","Personal"],["grp","Group"]].map(x=>`<button class="ch ${expF==x[0]?"on":""}" data-a=expF data-f=${x[0]}>${x[1]}</button>`).join("")}</div>
 ${L.map(e=>{const d=e.ts.slice(0,10),h=d!=last?`<small style="display:block;margin:6px 2px">${new Date(e.ts).toDateString()}</small>`:"";last=d;const ks=Object.keys(e.sh);
- const meta=e.personal?esc(e.cat):`${esc(e.cat)} · paid by ${esc(nm(e.payer))} · split ${ks.length==N()?"equally (all)":ks.map(nm).map(esc).join(", ")}${e.sh[me]?" · my share "+fmt(e.sh[me]):""}`;
- return h+`<div class=c><div class="row sp"><b>${CI[e.cat]||""} ${esc(e.desc)}</b><b>${fmt(e.amt)}</b></div><small>${e.personal?'<span class="bd u">Personal</span>':'<span class="bd x">Group</span>'} ${meta}${e.method?" · 💳 "+esc(e.method):""} · ${e.ts.slice(11)}</small>${e.note?`<p><small>${esc(e.note)}</small></p>`:""}<div class=row><button class="btn s m" data-a=editExp data-id=${e.id}>Edit</button><button class="btn d m" data-a=delExp data-id=${e.id}>Delete</button></div></div>`}).join("")||"<div class=c>No expenses here yet. Tap + to add one.</div>"}
+ const meta=e.personal?esc(e.cat):`${esc(e.cat)} · paid by ${esc(nm(e.payer))} · split ${ks.length==N()?"equally (all)":ks.map(nm).map(esc).join(", ")}${e.sh[me]?" · my share "+fC(e.sh[me],cOf(e)):""}`;
+ return h+`<div class=c><div class="row sp"><b>${CI[e.cat]||""} ${esc(e.desc)}</b><b style="text-align:right">${fC(e.amt,cOf(e))}${cOf(e)=="MYR"?`<small class=my>≈ ${fmt(e.amt*S.rate)}</small>`:""}</b></div><small>${e.personal?'<span class="bd u">Personal</span>':'<span class="bd x">Group</span>'} ${meta}${e.method?" · 💳 "+esc(e.method):""} · ${e.ts.slice(11)}</small>${e.note?`<p><small>${esc(e.note)}</small></p>`:""}<div class=row><button class="btn s m" data-a=editExp data-id=${e.id}>Edit</button><button class="btn d m" data-a=delExp data-id=${e.id}>Delete</button></div></div>`}).join("")||"<div class=c>No expenses here yet. Tap + to add one.</div>"}
 <button class=fab data-a=addExp>+</button>`};
-V.settle=()=>{const{b,tr}=bal();
- return`<h2 style="margin-bottom:10px">Settlement</h2><div class=c><table><tr><th>Person</th><th>Paid</th><th>Share</th><th>Net</th></tr>${S.pp.map(p=>{const x=b[p.id];return`<tr><td>${esc(p.n)}</td><td>${fmt(x.paid)}</td><td>${fmt(x.owed)}</td><td class="${x.net>0.5?"pos":x.net<-0.5?"neg":""}"><b>${x.net>0?"+":""}${fmt(x.net)}</b></td></tr>`}).join("")}</table><small>Positive = should receive. Negative = needs to pay.</small></div>
-<h3 style="margin:4px 0 8px">Who pays whom</h3>${tr.map((x,i)=>`<div class=c><div class="row sp"><span><b>${esc(nm(x.from))}</b> → <b>${esc(nm(x.to))}</b></span><b>${M(x.amt)}</b></div><button class="btn s m" data-a=settle data-i=${i}>Mark as paid</button></div>`).join("")||"<div class=c>All settled 🎉</div>"}
-${S.pay.length?`<h3 style="margin:4px 0 8px">Settled payments</h3>${S.pay.map(p=>`<div class="c row sp"><span>${esc(nm(p.from))} → ${esc(nm(p.to))} · ${fmt(p.amt)}</span><button class="btn d m" data-a=undo data-id=${p.id}>Undo</button></div>`).join("")}`:""}
-<button class=btn data-a=copy>Copy summary for WhatsApp</button>`};
+V.settle=()=>{const L=curs(),many=L.length>1;return L.map(cur=>{const{b,tr}=bal(cur),P=S.pay.filter(p=>cOf(p)==cur);
+ return`<h2 style="margin:4px 0 10px">Settlement${many?" · "+(cur=="MYR"?"Ringgit (RM)":"Rupiah (IDR)"):""}</h2>${many?`<div class=c><small>${cur=="MYR"?"Expenses paid in ringgit. Settle these in RM (e.g. DuitNow), separate from rupiah.":"Expenses paid in rupiah. Settle these in IDR (cash), separate from ringgit."}</small></div>`:""}
+<div class=c><table><tr><th>Person</th><th>Paid</th><th>Share</th><th>Net</th></tr>${S.pp.map(p=>{const x=b[p.id];return`<tr><td>${esc(p.n)}</td><td>${fC(x.paid,cur)}</td><td>${fC(x.owed,cur)}</td><td class="${x.net>0.005?"pos":x.net<-0.005?"neg":""}"><b>${x.net>0?"+":""}${fC(x.net,cur)}</b></td></tr>`}).join("")}</table><small>Positive = should receive. Negative = needs to pay.</small></div>
+<h3 style="margin:4px 0 8px">Who pays whom</h3>${tr.map((x,i)=>`<div class=c><div class="row sp"><span><b>${esc(nm(x.from))}</b> → <b>${esc(nm(x.to))}</b></span><b>${MC(x.amt,cur)}</b></div><button class="btn s m" data-a=settle data-c=${cur} data-i=${i}>Mark as paid</button></div>`).join("")||"<div class=c>All settled 🎉</div>"}
+${P.length?`<h3 style="margin:4px 0 8px">Settled payments</h3>${P.map(p=>`<div class="c row sp"><span>${esc(nm(p.from))} → ${esc(nm(p.to))} · ${fC(p.amt,cur)}</span><button class="btn d m" data-a=undo data-id=${p.id}>Undo</button></div>`).join("")}`:""}`}).join("")+`<button class=btn data-a=copy>Copy summary for WhatsApp</button>`};
 V.info=()=>{const I=S.info,ck=["Check in flight 2 days before","Travel insurance 2 weeks before","eSIM","Sign up MyBorderPass (optional)","Fill in All Indonesia 4 days before"];
  const TA=(k,l)=>`<div class=c><h3>${l}</h3><textarea data-i=${k}>${esc(I[k])}</textarea></div>`;
  const pl=[["Soekarno-Hatta Airport","Soekarno-Hatta International Airport"],["Halim Station (Whoosh)","Halim Station Whoosh"],["Padalarang Station","Padalarang Station"],["Bandung Station","Bandung Station"],["Chara Hotel Bandung","Chara Hotel Bandung"],["Spot 43 Hotel & Café","Spot 43 Hotel Bandung"]];
@@ -176,13 +182,13 @@ function actForm(a){modal={t:"act",id:a.id};
  <label class=i><input type=checkbox id=f-tp ${a.tp?"checked":""}>Transport price is per person (else per car/group)</label>${F("o","Other / activity (Rp /pax)",a.o||0,"number")}<label>Notes</label><textarea id=f-n>${esc(a.n||"")}</textarea>
  <div class=row><button class=btn data-a=saveAct>Save</button><button class="btn s" data-a=closeM>Cancel</button></div>`)}
 function expForm(e){const ed=!!e.id;modal={t:"exp",id:e.id};const sel=ed?Object.keys(e.sh):S.pp.map(p=>p.id),now=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);
- const per=ed?!!e.personal:S.lastKind!="grp",cur=ed?(e.method||""):(S.lastMeth||"Cash"),payer=e.payer||S.me;
+ const per=ed?!!e.personal:S.lastKind!="grp",cur=ed?(e.method||""):(S.lastMeth||"Cash"),payer=e.payer||S.me,cur0=ed?cOf(e):(S.lastCur||"IDR");
  showModal(`<h2 style="margin-bottom:10px">${ed?"Edit":"Add"} expense</h2><div id=ek class=${per?"k-per":"k-grp"}><div class=seg><button type=button class="${per?"on":""}" data-a=kind data-k=per>Personal (me only)</button><button type=button class="${per?"":"on"}" data-a=kind data-k=grp>Group / shared</button></div>
- <div id=ef class=m-eq>${F("amt","Amount (IDR)",e.amt||"","number")}${F("desc","Description",e.desc||"")}<label>Category</label><select id=f-cat>${CATS.map(c=>`<option ${e.cat==c?"selected":""}>${c}</option>`).join("")}</select>
+ <div id=ef class=m-eq><input type=hidden id=f-cur value=${cur0}><div class=seg>${CU.map(c=>`<button type=button class="${c==cur0?"on":""}" data-a=cur data-c=${c}>${c=="IDR"?"Rupiah (Rp)":"Ringgit (RM)"}</button>`).join("")}</div><label id=amtl>Amount (${cur0})</label><input id=f-amt type=number inputmode=decimal step=any value="${e.amt||""}">${F("desc","Description",e.desc||"")}<label>Category</label><select id=f-cat>${CATS.map(c=>`<option ${e.cat==c?"selected":""}>${c}</option>`).join("")}</select>
  <label>Paid with</label><div class="chips wrap" id=mch>${meths().map(m=>`<button type=button class="ch ${m==cur?"on":""}" data-a=meth data-m="${esc(m)}">${esc(m)}</button>`).join("")}</div><input id=f-meth placeholder="or type another (e.g. BigPay, Wise, GoPay)" value="${esc(cur)}">
  <div class=gonly><label>Paid by</label><select id=f-payer>${S.pp.map(p=>`<option value=${p.id} ${payer==p.id?"selected":""}>${esc(p.n)}</option>`).join("")}</select>
  <label>Split</label><select id=f-mode data-c=mode><option value=eq>Equal among everyone</option><option value=sel ${ed&&!per&&sel.length<N()?"selected":""}>Selected travellers only</option><option value=cus>Custom amount per person</option></select>
- <div>${S.pp.map(p=>`<div class=pk><input type=checkbox class=pc data-p=${p.id} ${sel.includes(p.id)?"checked":""}><label>${esc(p.n)}</label><span class=pa><input type=number inputmode=numeric data-pa=${p.id} placeholder=0 value="${ed&&e.sh[p.id]||""}"></span></div>`).join("")}</div><small id=rem></small></div>
+ <div>${S.pp.map(p=>`<div class=pk><input type=checkbox class=pc data-p=${p.id} ${sel.includes(p.id)?"checked":""}><label>${esc(p.n)}</label><span class=pa><input type=number inputmode=decimal step=any data-pa=${p.id} placeholder=0 value="${ed&&e.sh[p.id]||""}"></span></div>`).join("")}</div><small id=rem></small></div>
  ${F("ts","Date & time",e.ts||now,"datetime-local")}<label>Notes</label><textarea id=f-n>${esc(e.note||"")}</textarea></div></div><div class=row><button class=btn data-a=saveExp>Save</button><button class="btn s" data-a=closeM>Cancel</button></div>`);
  if(ed&&!per&&sel.length<N())$("#ef").className="m-sel";if(!ed)setTimeout(()=>{const i=$("#f-amt");i&&i.focus()},50)}
 const dl=(n,txt,ty)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:ty}));a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast("Downloaded "+n)};
@@ -197,18 +203,19 @@ const A={
  delAct:d=>ask("Delete this activity?",()=>{S.acts=S.acts.filter(x=>x.id!=d.id);save();render()}),
  mv:d=>{const a=S.acts.find(x=>x.id==d.id),i=S.acts.indexOf(a),j=i+ +d.d;if(S.acts[j]&&S.acts[j].day==a.day){S.acts[i]=S.acts[j];S.acts[j]=a;save();render()}},
  addExp:()=>expForm({}),editExp:d=>expForm(S.exps.find(x=>x.id==d.id)),
- saveExp:()=>{const g=k=>$("#f-"+k).value,amt=Math.round(+g("amt")),mode=g("mode"),desc=g("desc").trim(),per=$("#ek").className=="k-per",method=g("meth").trim();if(!desc||!(amt>0))return toast("Add description and amount");
+ saveExp:()=>{const g=k=>$("#f-"+k).value,cur=g("cur"),u=UF(cur),A0=Math.round((+g("amt")||0)*u),amt=A0/u,mode=g("mode"),desc=g("desc").trim(),per=$("#ek").className=="k-per",method=g("meth").trim();if(!desc||!(A0>0))return toast("Add description and amount");
   let ids=[...document.querySelectorAll(".pc")].filter(c=>c.checked).map(c=>c.dataset.p),sh={};if(mode=="eq")ids=S.pp.map(p=>p.id);
   if(per)sh[S.me]=amt;
-  else if(mode=="cus"){let s=0;S.pp.forEach(p=>{const v=Math.round(+document.querySelector(`[data-pa=${p.id}]`).value)||0;if(v>0){sh[p.id]=v;s+=v}});if(s!=amt)return toast("Custom amounts total "+fmt(s)+", need "+fmt(amt))}
-  else{if(!ids.length)return toast("Pick who shares it");const b=Math.floor(amt/ids.length);let r=amt-b*ids.length;ids.forEach(k=>{sh[k]=b+(r-->0?1:0)})}
-  const x={desc,cat:g("cat"),amt,payer:per?S.me:g("payer"),ts:g("ts"),sh,note:g("n"),personal:per,method};if(modal.id)Object.assign(S.exps.find(e=>e.id==modal.id),x);else S.exps.push({id:uid(),...x});
-  S.lastKind=per?"per":"grp";if(method)S.lastMeth=method;save();closeM();render();toast("Saved")},
- kind:d=>{$("#ek").className="k-"+d.k;document.querySelectorAll(".seg button").forEach(b=>b.classList.toggle("on",b.dataset.k==d.k))},
+  else if(mode=="cus"){let t=0;S.pp.forEach(p=>{const v=Math.round((+document.querySelector(`[data-pa=${p.id}]`).value||0)*u);if(v>0){sh[p.id]=v/u;t+=v}});if(t!=A0)return toast("Custom amounts total "+fC(t/u,cur)+", need "+fC(amt,cur))}
+  else{if(!ids.length)return toast("Pick who shares it");const b=Math.floor(A0/ids.length);let r=A0-b*ids.length;ids.forEach(k=>{sh[k]=(b+(r-->0?1:0))/u})}
+  const x={desc,cat:g("cat"),amt,cur,payer:per?S.me:g("payer"),ts:g("ts"),sh,note:g("n"),personal:per,method};if(modal.id)Object.assign(S.exps.find(e=>e.id==modal.id),x);else S.exps.push({id:uid(),...x});
+  S.lastKind=per?"per":"grp";S.lastCur=cur;if(method)S.lastMeth=method;save();closeM();render();toast("Saved")},
+ cur:d=>{$("#f-cur").value=d.c;document.querySelectorAll("[data-a=cur]").forEach(b=>b.classList.toggle("on",b.dataset.c==d.c));$("#amtl").textContent="Amount ("+d.c+")"},
+ kind:d=>{$("#ek").className="k-"+d.k;document.querySelectorAll("[data-a=kind]").forEach(b=>b.classList.toggle("on",b.dataset.k==d.k))},
  meth:d=>{$("#f-meth").value=d.m;mchips(d.m)},expF:d=>{expF=d.f;render()},
  delExp:d=>ask("Delete this expense?",()=>{S.exps=S.exps.filter(x=>x.id!=d.id);save();render()}),
- settle:d=>{const t=bal().tr[+d.i];if(t){S.pay.push({id:uid(),...t});save();render()}},undo:d=>{S.pay=S.pay.filter(p=>p.id!=d.id);save();render()},
- copy:()=>{const{b,tr}=bal();const tx="Jakarta x Bandung settlement\n"+S.pp.map(p=>p.n+": "+(b[p.id].net>0?"+":"")+fmt(b[p.id].net)).join("\n")+"\n\nTo settle:\n"+(tr.map(x=>nm(x.from)+" → "+nm(x.to)+": "+fmt(x.amt)+" ("+rm(x.amt)+")").join("\n")||"All settled");
+ settle:d=>{const t=bal(d.c).tr[+d.i];if(t){S.pay.push({id:uid(),...t});save();render()}},undo:d=>{S.pay=S.pay.filter(p=>p.id!=d.id);save();render()},
+ copy:()=>{const tx="Jakarta x Bandung settlement"+curs().map(cur=>{const{b,tr}=bal(cur);return"\n\n["+(cur=="MYR"?"Ringgit":"Rupiah")+"]\n"+S.pp.map(p=>p.n+": "+(b[p.id].net>0?"+":"")+fC(b[p.id].net,cur)).join("\n")+"\nTo settle:\n"+(tr.map(x=>nm(x.from)+" → "+nm(x.to)+": "+fC(x.amt,cur)+(cur=="IDR"?" ("+rm(x.amt)+")":"")).join("\n")||"All settled")}).join("");
   const fb=()=>{const t=document.createElement("textarea");t.value=tx;document.body.appendChild(t);t.select();try{document.execCommand("copy");toast("Copied")}catch(e){toast("Copy failed")}t.remove()};
   navigator.clipboard?navigator.clipboard.writeText(tx).then(()=>toast("Copied"),fb):fb()},
  addPp:()=>{showModal(`<h2>Add traveller</h2>${F("pn","Name","")}<div class=row><button class=btn data-a=savePp>Add</button><button class="btn s" data-a=closeM>Cancel</button></div>`);modal={t:"pp"};setTimeout(()=>{const i=$("#f-pn");i&&i.focus()},50)},
@@ -217,7 +224,7 @@ const A={
  delPp:d=>{if(d.id==S.me)return toast("That is you. Change “I am” in Expenses first");if(S.exps.some(e=>e.payer==d.id||e.sh[d.id])||S.pay.some(p=>p.from==d.id||p.to==d.id))return toast("Used in expenses, can’t remove");if(N()>1){S.pp=S.pp.filter(p=>p.id!=d.id);save();render()}},
  backup:()=>dl("jkt-bdg-backup-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(S),"application/json"),
  restore:()=>$("#rf").click(),
- csv:()=>{const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';const rows=[["Date","Description","Category","Type","Amount (IDR)","Paid by","Paid with","My share (IDR)","Split","Notes"]].concat([...S.exps].sort((a,b)=>a.ts.localeCompare(b.ts)).map(e=>[e.ts.replace("T"," "),e.desc,e.cat,e.personal?"Personal":"Group",e.amt,nm(e.payer),e.method||"",mine(e),Object.keys(e.sh).map(k=>nm(k)+" "+e.sh[k]).join("; "),e.note||""]));dl("jkt-bdg-expenses.csv","\ufeff"+rows.map(r=>r.map(q).join(",")).join("\n"),"text/csv")},
+ csv:()=>{const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';const rows=[["Date","Description","Category","Type","Amount","Currency","Paid by","Paid with","My share","Split","Notes"]].concat([...S.exps].sort((a,b)=>a.ts.localeCompare(b.ts)).map(e=>[e.ts.replace("T"," "),e.desc,e.cat,e.personal?"Personal":"Group",e.amt,cOf(e),nm(e.payer),e.method||"",mineRaw(e),Object.keys(e.sh).map(k=>nm(k)+" "+e.sh[k]).join("; "),e.note||""]));dl("jkt-bdg-expenses.csv","\ufeff"+rows.map(r=>r.map(q).join(",")).join("\n"),"text/csv")},
  reset:()=>ask("Erase everything and restore the original plan?",()=>{S=seed();save();render();toast("Reset done")},"Reset")};
 document.addEventListener("click",e=>{if(e.target==$("#modal"))return closeM();const b=e.target.closest("[data-a]");if(b&&A[b.dataset.a]){e.preventDefault();A[b.dataset.a](b.dataset,b)}});
 document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.id=="f-pn"){e.preventDefault();A.savePp()}});
@@ -228,7 +235,7 @@ document.addEventListener("change",e=>{const t=e.target,c=t.dataset.c;if(!c)retu
  else if(c=="me"){S.me=t.value;save();render()}
  else if(c=="mode")$("#ef").className="m-"+t.value});
 document.addEventListener("input",e=>{const t=e.target;if(t.id=="f-meth")mchips(t.value.trim());if(t.dataset.i){S.info[t.dataset.i]=t.value;save()}
- if(t.dataset.pa){let s=0;document.querySelectorAll("[data-pa]").forEach(i=>s+=+i.value||0);const a=+$("#f-amt").value||0;$("#rem").textContent="Assigned "+fmt(s)+" of "+fmt(a)}});
+ if(t.dataset.pa){let s=0;document.querySelectorAll("[data-pa]").forEach(i=>s+=+i.value||0);const a=+$("#f-amt").value||0;const c=$("#f-cur").value;$("#rem").textContent="Assigned "+fC(s,c)+" of "+fC(a,c)}});
 document.addEventListener("change",e=>{if(e.target.id!="rf")return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.acts||!d.exps||!d.pp)throw 0;ask("Replace everything on this phone with the backup?",()=>{S=d;save();render();toast("Backup restored")},"Restore")}catch(x){toast("Not a valid backup file")}};r.readAsText(f);e.target.value=""});
 render();
 if("serviceWorker" in navigator&&location.protocol=="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
